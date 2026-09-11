@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lista de Compras Colaborativa</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#128C7E">
+<link rel="icon" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Compras">
+<style>
+  :root {
+    --verde: #128C7E;
+    --verde-claro: #25D366;
+    --cinza-fundo: #ECE5DD;
+    --branco: #ffffff;
+    --cinza-texto: #667781;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    background: var(--cinza-fundo);
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 20px;
+  }
+  .app {
+    width: 100%;
+    max-width: 480px;
+  }
+  .card {
+    background: var(--branco);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    margin-bottom: 16px;
+  }
+  h1 {
+    color: var(--verde);
+    font-size: 1.4em;
+    margin-top: 0;
+  }
+  input[type=text] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #d1d7db;
+    border-radius: 8px;
+    font-size: 1em;
+    margin-bottom: 10px;
+  }
+  button {
+    background: var(--verde-claro);
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 1em;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  button:hover { opacity: 0.9; }
+  button.secundario {
+    background: var(--verde);
+  }
+  .linha { display: flex; gap: 8px; }
+  .linha input { flex: 1; margin-bottom: 0; }
+
+  #tela-entrada { }
+  #tela-lista { display: none; }
+
+  .cabecalho-lista {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .codigo-lista {
+    background: var(--cinza-fundo);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-weight: bold;
+    color: var(--verde);
+    letter-spacing: 1px;
+  }
+  .presenca {
+    font-size: 0.85em;
+    color: var(--cinza-texto);
+    margin-top: 4px;
+  }
+
+  ul#itens {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  li.item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 4px;
+    border-bottom: 1px solid #eee;
+  }
+  li.item:last-child { border-bottom: none; }
+  .item-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    flex: 1;
+  }
+  .checkbox {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid var(--verde-claro);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    color: white;
+  }
+  .checkbox.marcado {
+    background: var(--verde-claro);
+  }
+  .item-nome.pego {
+    text-decoration: line-through;
+    color: var(--cinza-texto);
+  }
+  .pego-por {
+    font-size: 0.75em;
+    color: var(--cinza-texto);
+    display: block;
+  }
+  .remover {
+    background: none;
+    color: #d33;
+    font-size: 1.2em;
+    padding: 4px 8px;
+  }
+  .erro {
+    color: #d33;
+    font-size: 0.9em;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <div id="tela-entrada" class="card">
+    <h1>🛒 Lista de Compras Colaborativa</h1>
+    <input type="text" id="input-nome" placeholder="Seu nome">
+
+    <div style="margin-top:16px;">
+      <button id="btn-criar" style="width:100%; margin-bottom:10px;">Criar nova lista</button>
+    </div>
+
+    <div style="text-align:center; color:var(--cinza-texto); margin: 8px 0;">— ou —</div>
+
+    <div class="linha">
+      <input type="text" id="input-codigo" placeholder="Código da lista (ex: A1B2C3)">
+      <button id="btn-entrar" class="secundario">Entrar</button>
+    </div>
+    <p class="erro" id="msg-erro"></p>
+  </div>
+
+  <div id="tela-lista" class="card">
+    <div class="cabecalho-lista">
+      <h1>🛒 Compras</h1>
+      <span class="codigo-lista" id="span-codigo"></span>
+    </div>
+    <p class="presenca" id="presenca">Conectando...</p>
+
+    <div class="linha" style="margin-top:12px;">
+      <input type="text" id="input-item" placeholder="Adicionar item (ex: Leite)">
+      <button id="btn-add">+</button>
+    </div>
+
+    <ul id="itens"></ul>
+  </div>
+
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  const socket = io();
+
+  const telaEntrada = document.getElementById('tela-entrada');
+  const telaLista = document.getElementById('tela-lista');
+  const inputNome = document.getElementById('input-nome');
+  const inputCodigo = document.getElementById('input-codigo');
+  const inputItem = document.getElementById('input-item');
+  const spanCodigo = document.getElementById('span-codigo');
+  const listaItens = document.getElementById('itens');
+  const presenca = document.getElementById('presenca');
+  const msgErro = document.getElementById('msg-erro');
+
+  document.getElementById('btn-criar').onclick = () => {
+    const nome = inputNome.value.trim();
+    if (!nome) { msgErro.textContent = 'Digite seu nome primeiro.'; return; }
+    socket.emit('criar-lista', nome, ({ codigo }) => {
+      entrarNaLista(codigo, nome);
+    });
+  };
+
+  document.getElementById('btn-entrar').onclick = () => {
+    const nome = inputNome.value.trim();
+    const codigo = inputCodigo.value.trim();
+    if (!nome) { msgErro.textContent = 'Digite seu nome primeiro.'; return; }
+    if (!codigo) { msgErro.textContent = 'Digite o código da lista.'; return; }
+    entrarNaLista(codigo, nome);
+  };
+
+  function entrarNaLista(codigo, nome) {
+    socket.emit('entrar-lista', { codigo, nome }, (resp) => {
+      if (resp.erro) { msgErro.textContent = resp.erro; return; }
+      msgErro.textContent = '';
+      telaEntrada.style.display = 'none';
+      telaLista.style.display = 'block';
+      spanCodigo.textContent = resp.estado.codigo;
+      renderizar(resp.estado);
+    });
+  }
+
+  document.getElementById('btn-add').onclick = adicionarItem;
+  inputItem.addEventListener('keypress', (e) => { if (e.key === 'Enter') adicionarItem(); });
+
+  function adicionarItem() {
+    const texto = inputItem.value.trim();
+    if (!texto) return;
+    socket.emit('adicionar-item', texto);
+    inputItem.value = '';
+  }
+
+  socket.on('estado-atualizado', renderizar);
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch((err) => {
+        console.log('Falha ao registrar service worker:', err);
+      });
+    });
+  }
+
+  function renderizar(estado) {
+    presenca.textContent = estado.usuarios.length + ' pessoa(s) na lista: ' + estado.usuarios.join(', ');
+
+    listaItens.innerHTML = '';
+    estado.itens.forEach((item) => {
+      const li = document.createElement('li');
+      li.className = 'item';
+
+      const info = document.createElement('div');
+      info.className = 'item-info';
+      info.onclick = () => socket.emit('alternar-item', item.id);
+
+      const check = document.createElement('div');
+      check.className = 'checkbox' + (item.pego ? ' marcado' : '');
+      check.textContent = item.pego ? '✓' : '';
+
+      const textoWrap = document.createElement('div');
+      const nome = document.createElement('span');
+      nome.className = 'item-nome' + (item.pego ? ' pego' : '');
+      nome.textContent = item.nome;
+      textoWrap.appendChild(nome);
+
+      if (item.pego && item.pegoPor) {
+        const quem = document.createElement('span');
+        quem.className = 'pego-por';
+        quem.textContent = 'pego por ' + item.pegoPor;
+        textoWrap.appendChild(quem);
+      }
+
+      info.appendChild(check);
+      info.appendChild(textoWrap);
+
+      const btnRemover = document.createElement('button');
+      btnRemover.className = 'remover';
+      btnRemover.textContent = '✕';
+      btnRemover.onclick = () => socket.emit('remover-item', item.id);
+
+      li.appendChild(info);
+      li.appendChild(btnRemover);
+      listaItens.appendChild(li);
+    });
+  }
+</script>
+
+</body>
+</html>
