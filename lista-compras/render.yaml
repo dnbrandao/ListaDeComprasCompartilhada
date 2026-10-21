@@ -3,6 +3,7 @@ services:
     name: lista-compras-colaborativa
     runtime: node
     plan: free
+    rootDir: lista-compras
     buildCommand: npm install
     startCommand: npm start
     envVars:
